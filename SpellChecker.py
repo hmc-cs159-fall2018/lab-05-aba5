@@ -1,23 +1,49 @@
-from LanguageModel.py import LanguageModel
-from EditDistance.py import *
+from LanguageModel import LanguageModel
+from EditDistance import *
 import spacy
+from spacy.vocab import Vocab
+from spacy.tokenizer import Tokenizer
+from spacy.tokens import Doc
+import re
 
 nlp = spacy.load("en", pipeline=["tagger", "parser"])
+
+import re
+
+def tokenize(string):
+    lst = re.split(r'(\W)', string)
+    return ' '.join(lst).split()
+
+class MyTokenizer(Tokenizer):
+    def __call__(self, string):
+        return Doc(self.vocab, words=tokenize(string))
+
 
 class SpellChecker():
     # takes an EditDistanceFinder, a LanguageModel, and an int as input, and
     # should initialize your SpellChecker.
-    def __init__(self, channel_model=None, language_model=None, max_distance):
+    def __init__(self,  max_distance, channel_model=None, language_model=None):
         self.channel_model = channel_model
         self.language_model = language_model
         self.max_distance = max_distance
+
+    #HELPER FUNCTION
+    # takes in a string and return a list of tokenized sentences
+    def create_doc(self, string):
+        nlp = self.language_model
+        vocab = Vocab(strings = nlp.vocabulary)
+        tokenizer = Tokenizer(vocab)
+        doc = tokenizer(string)
+
+        sents = list(doc.sents)
+        return sents
 
     # takes a file pointer as input, and should initialize the
     # SpellChecker object’s channel_model data member to a default
     # EditDistanceFinder and then load the stored language model (e.g. ed.pkl)
     # from fp into that data member.
     def load_channel_model(self, fp):
-        self.channel_model = EditDistanceFinder
+        self.channel_model = EditDistanceFinder()
         self.channel_model.load(fp)
 
 
@@ -116,46 +142,80 @@ class SpellChecker():
         return word_list
 
     #takes a list of words as input and return a list of lists
-    def check_non_words(self, sentence, fallback=False):
+    def check_sentence(self, sentence, fallback=False):
         word_list = []
         for word in sentence:
             if (word in self.language_model.vocabulary):
-                word_list.append(word)
+                word_list.append([word])
             else:
                 candidates = generate_candidates(word)
-                words_scores = []
-                
+                tuple_candidates = []
+                for candidate in candidates:
+                    tuple_candidates.append((language_model.unigram_prob(candidate) +
+                     channel_model.prob(word, candidate), candidate))
+                tuple_candidates.sort()
 
-    # takes a tokenized sentence (as a list of strings) as input,
-    # call check_non_words, and return the resulting list-of-lists.
-    def check_sentence(self, sentence, fallback=False):
+                if (tuple_candidates == [] and fallback):
+                    word_list.append([word])
+                else:
+                    word_list.append([second for (first, second) in tuple_candidates])
+        return word_list
 
-
-    # takes a list of words as input and return a list of lists. Each sublist
-    # in the return value corresponds to a single word in the input sentence.
-    def check_sentence(self, sentence, fallback=False):
 
     # which should take a string as input, tokenize and sentence segment it
     # with spacy, and then return the concatenation of the result of calling
     # check_sentence on all of the resulting sentence objects.
     def check_text(self, text, fallback=False):
+        sents = self.create_doc(text)
+        sents_list = []
+        for sentence in sents:
+            sents_list.append(check_sentence(sentence))
+        return sents_list
 
     #takes a tokenized sentence (as a list of words) as input, call check_sentence
     # on the sentence with fallback=True, and return a new list of tokens where
     # each non-word has been replaced by its most likely spelling correction.
     def autocorrect_sentence(self, sentence):
+        corrections = check_sentence(sentence, True)
+        replaced_words = []
+        for correction in corrections:
+            replaced_words.append(correction[0])
+        return replaced_words
 
     # takes a string as input, tokenize and segment it with spacy, and then
     # return the concatenation of the result of calling autocorrect_sentence on
     # all of the resulting sentence objects.
     def autocorrect_line(self, line):
+        sents = self.create_doc(line)
+        sents_list = []
+        for sentence in sents:
+            sents_list.append(autocorrect_sentence(sentence))
+        return sents_list
 
     # takes a tokenized sentence (as a list of words) as input, call
     # check_sentence on the sentence, and return a new list where:
     # Real words are just strings in the list
     def suggest_sentence(self, sentence, max_suggestions):
+        word_list = check_sentence(sentence)
+        counter = 0
+        output_list = []
+        for suggestion_list in word_list:
+            if ([sentence[counter]] == suggestion_list):
+                output_list.append(sentence[counter])
+            elif (len(suggestion_list) < max_suggestions):
+                output_list.append(suggestion_list)
+            else:
+                output_list.append(suggestion_list[:max_suggestions])
+            counter += 1
+        return output_list
+
 
     # take a string as input, tokenize and segment it with spacy, and then
     # return the concatenation of the result of calling suggest_sentence
     # on all of the resulting sentence objects
-    def suggest_text(self, text, max_suggestions)
+    def suggest_text(self, text, max_suggestions):
+        sents = self.create_doc(text)
+        suggested_sents = []
+        for sentence in sents:
+            suggested_sents.append(suggest_sentence(sentence))
+        return suggested_sents
