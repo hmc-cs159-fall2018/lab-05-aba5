@@ -14,3 +14,6 @@
 7. The command -line interface for LanguageModel.py takes in 4 arguments. First, a required file '--store' to write the dictionary of probabilities to. Then, an optional float "--alpha" that is default set to 0.1, this value specifies the amount that we are using to Laplace Smooth. Then, an optional int "--vocab" with a default value of 40,000. This is used to add the '--vocab' most common words in the vocabulary of the language model. Then there is "source" which points to one or many files that we use to build the LanguageModel.
 
 python3 LanguageModel.py --store lm.pkl --alpha 0.1 --vocab 40000 /data/gutenberg/*.txt
+**
+
+11. Our approach is to modify the align function in EditDistance. When we calculate the cost of going from the intended word to the observed word, we will check to see if there are two consecutive tuples of the form (x, y), (y, x). In this case, we know there is a transposition. A transposition is more likely than the substitution of two random letter. We will account for this difference by decreasing the edit distance cost by subtracting the average of the probabilities of (x, y) and (y, x).

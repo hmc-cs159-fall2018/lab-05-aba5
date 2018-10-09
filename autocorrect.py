@@ -8,7 +8,7 @@
 
 import argparse
 import sys
-from SpellCheck import SpellChecker
+from SpellChecker import SpellChecker
 from LanguageModel import LanguageModel
 from EditDistance import EditDistanceFinder
 
@@ -23,8 +23,10 @@ if __name__ == "__main__":
     s.load_language_model(args.languagemodel)
     s.load_channel_model(args.editmodel)
 
+    fp = open("outpu_file.txt", "w")
+
     for line in args.corpus:
         print("LINE: ", line)
         corrected = s.autocorrect_line(line)
         print("CORRECTED: ", corrected)
-
+        fp.write(corrected)

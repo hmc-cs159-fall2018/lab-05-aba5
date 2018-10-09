@@ -30,11 +30,7 @@ class SpellChecker():
     #HELPER FUNCTION
     # takes in a string and return a list of tokenized sentences
     def create_doc(self, string):
-        nlp = self.language_model
-        vocab = Vocab(strings = nlp.vocabulary)
-        tokenizer = Tokenizer(vocab)
-        doc = tokenizer(string)
-
+        doc = nlp(string)
         sents = list(doc.sents)
         return sents
 
@@ -79,14 +75,13 @@ class SpellChecker():
 
     # takes a word as input and return a list of words (that are in the
     # LanguageModel) that are within one insert of word.
-    # CHECK THAT THIS IS OK
     def inserts(self, word):
         word_list = []
         for vocab_word in self.language_model.vocabulary:
             # assuming word is observed word
             count = 0
-            alignment = self.channel_model.align(word, vocab_word)
-            for (first, second) in alignment:
+            (cost, alignments) = self.channel_model.align(word, vocab_word)
+            for (first, second) in alignments:
                 if (first == "%"):
                     count += 1
                 elif (first != second):
@@ -103,8 +98,8 @@ class SpellChecker():
         for vocab_word in self.language_model.vocabulary:
             # assuming word is observed word
             count = 0
-            alignment = self.channel_model.align(word, vocab_word)
-            for (first, second) in alignment:
+            (cost, alignments) = self.channel_model.align(word, vocab_word)
+            for (first, second) in alignments:
                 if (second == "%"):
                     count += 1
                 elif (first != second):
@@ -120,8 +115,8 @@ class SpellChecker():
         for vocab_word in self.language_model.vocabulary:
             # assuming word is observed word
             count = 0
-            alignment = self.channel_model.align(word, vocab_word)
-            for (first, second) in alignment:
+            (cost, alignments) = self.channel_model.align(word, vocab_word)
+            for (first, second) in alignments:
                 if (first != "%" and second != "%"):
                     count += 2
                 elif (first != second):
@@ -133,32 +128,37 @@ class SpellChecker():
     # takes a word as input and return a list of candidate words that are
     # within self.max_distance edits of word
     def generate_candidates(self, word):
-        word_list = [word]
+        word_list = [word.lower()]
         for i in range(0, self.max_distance):
             for element in word_list:
-                one_away = self.inserts(element) + self.deletes(element)
-                + self.substitutions(element)
+                one_away = self.inserts(element.lower()) + self.deletes(element.lower()) + self.substitutions(element.lower())
             word_list = word_list + one_away
         return word_list
 
     #takes a list of words as input and return a list of lists
     def check_sentence(self, sentence, fallback=False):
         word_list = []
+        counter = 0
         for word in sentence:
+            if (counter == 0):
+                last_word = "."
+            else:
+                last_word = sentence[counter - 1]
             if (word in self.language_model.vocabulary):
                 word_list.append([word])
             else:
-                candidates = generate_candidates(word)
+                candidates = self.generate_candidates(word)
                 tuple_candidates = []
                 for candidate in candidates:
-                    tuple_candidates.append((language_model.unigram_prob(candidate) +
-                     channel_model.prob(word, candidate), candidate))
+                    value = 0.5*self.language_model.unigram_prob(candidate) + 0.5*self.language_model.bigram_prob(last_word, candidate)+ self.channel_model.prob(word, candidate)
+                    tuple_candidates.append((value, candidate))
                 tuple_candidates.sort()
 
                 if (tuple_candidates == [] and fallback):
                     word_list.append([word])
                 else:
                     word_list.append([second for (first, second) in tuple_candidates])
+            counter += 1
         return word_list
 
 
@@ -169,14 +169,14 @@ class SpellChecker():
         sents = self.create_doc(text)
         sents_list = []
         for sentence in sents:
-            sents_list.append(check_sentence(sentence))
+            sents_list.append(self.check_sentence([word.text.lower() for word in sentence]))
         return sents_list
 
     #takes a tokenized sentence (as a list of words) as input, call check_sentence
     # on the sentence with fallback=True, and return a new list of tokens where
     # each non-word has been replaced by its most likely spelling correction.
     def autocorrect_sentence(self, sentence):
-        corrections = check_sentence(sentence, True)
+        corrections = self.check_sentence(sentence, True)
         replaced_words = []
         for correction in corrections:
             replaced_words.append(correction[0])
@@ -189,14 +189,14 @@ class SpellChecker():
         sents = self.create_doc(line)
         sents_list = []
         for sentence in sents:
-            sents_list.append(autocorrect_sentence(sentence))
+            sents_list.append(self.autocorrect_sentence([word.text.lower() for word in sentence]))
         return sents_list
 
     # takes a tokenized sentence (as a list of words) as input, call
     # check_sentence on the sentence, and return a new list where:
     # Real words are just strings in the list
     def suggest_sentence(self, sentence, max_suggestions):
-        word_list = check_sentence(sentence)
+        word_list = self.check_sentence(sentence)
         counter = 0
         output_list = []
         for suggestion_list in word_list:
@@ -217,5 +217,5 @@ class SpellChecker():
         sents = self.create_doc(text)
         suggested_sents = []
         for sentence in sents:
-            suggested_sents.append(suggest_sentence(sentence))
+            suggested_sents.append(self.suggest_sentence([word.text.lower() for word in sentence]))
         return suggested_sents
