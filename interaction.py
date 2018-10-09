@@ -38,7 +38,7 @@ if __name__ == "__main__":
     >>> ['they', 'did', 'not', 'by', 'any', 'means']
     """
 
-    print(s.suggest_line("they did not yb any menas", max_suggestions=2))
+    print(s.suggest_text("they did not yb any menas", max_suggestions=2))
     """
     >>> ['they', 'did', 'not', ['by', 'b'], 'any', ['means', 'mens']]
     """
